@@ -5,16 +5,7 @@ game data to stat.ink for longer term access.  There is also some data that spla
 does not display.  This program gives access to that data too.
 
 ## Installing
-Currently Windows (exe), OS X (dmg, mac.zip), and Linux (AppImage) are supported.  Get the packages here https://github.com/hymm/squid-tracks/releases
-
-#### Installing on Windows
-Download installer .exe from https://github.com/hymm/squid-tracks/releases.
-You will get a warning when running the installer.  Bypass the warning by clicking
-"more info" and then "Run Anyways."
-
-#### Installing on Mac
-
-#### Installing on Linux
+Currently Windows (exe) and OS X (dmg, mac.zip) are supported.  Get the packages here https://github.com/mathewthe2/squid-tracks/releases/
 
 ## Contributing
 
