@@ -6,8 +6,8 @@ const log = require('electron-log');
 const { app } = require('electron');
 const Memo = require('promise-memoize');
 
-const userAgentVersion = `1.6.1.2`;
-const userAgentString = `com.nintendo.znca/${userAgentVersion} (Android/4.4.2)`;
+const userAgentVersion = `1.8.0`;
+const userAgentString = `com.nintendo.znca/${userAgentVersion} (Android/7.1.2)`;
 const appVersion = app.getVersion();
 const squidTracksUserAgentString = `SquidTracks/${appVersion}`;
 const splatnetUrl = `https://app.splatoon2.nintendo.net`;
@@ -52,15 +52,23 @@ function generateAuthenticationParams() {
   };
 }
 
+async function requestWithErrorHandling(options) {
+  try {
+    return await request(options);
+  } catch (e) {
+    throw new Error(`Error requesting uri ${options.uri}: ${e.toString()}`);
+  }
+}
+
 async function getSessionToken(session_token_code, codeVerifier) {
-  const resp = await request({
+  const resp = await requestWithErrorHandling({
     method: 'POST',
     uri: 'https://accounts.nintendo.com/connect/1.0.0/api/session_token',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'X-Platform': 'Android',
       'X-ProductVersion': userAgentVersion,
-      'User-Agent': userAgentString
+      'User-Agent': `OnlineLounge/${userAgentVersion} NASDKAPI Android`
     },
     form: {
       client_id: '71b963c1b7b6d119',
@@ -76,14 +84,14 @@ async function getSessionToken(session_token_code, codeVerifier) {
 }
 
 async function getApiToken(session_token) {
-  const resp = await request({
+  const resp = await requestWithErrorHandling({
     method: 'POST',
     uri: 'https://accounts.nintendo.com/connect/1.0.0/api/token',
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
       'X-Platform': 'Android',
       'X-ProductVersion': userAgentVersion,
-      'User-Agent': userAgentString
+      'User-Agent': `OnlineLounge/${userAgentVersion} NASDKAPI Android`
     },
     json: {
       client_id: '71b963c1b7b6d119',
@@ -99,7 +107,7 @@ async function getApiToken(session_token) {
 }
 
 async function getHash(idToken, timestamp) {
-  const response = await request({
+  const response = await requestWithErrorHandling({
     method: 'POST',
     uri: 'https://elifessler.com/s2s/api/gen2',
     headers: {
@@ -117,11 +125,16 @@ async function getHash(idToken, timestamp) {
 }
 
 async function callFlapg(idToken, guid, timestamp, login) {
-  const hash = await getHash(idToken, timestamp)
-  const response = await request({
+  const hash = await getHash(idToken, timestamp);
+  const response = await requestWithErrorHandling({
     method: 'GET',
     uri: 'https://flapg.com/ika2/api/login?public',
     headers: {
+      Host: 'flapg.com',
+      'User-Agent': squidTracksUserAgentString,
+      'Accept-Encoding': 'gzip, deflate',
+      Accept: '*/*',
+      Connection: 'keep-alive',
       'x-token': idToken,
       'x-time': timestamp,
       'x-guid': guid,
@@ -137,14 +150,14 @@ async function callFlapg(idToken, guid, timestamp, login) {
 }
 
 async function getUserInfo(token) {
-  const response = await request({
+  const response = await requestWithErrorHandling({
     method: 'GET',
     uri: 'https://api.accounts.nintendo.com/2.0.0/users/me',
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
       'X-Platform': 'Android',
       'X-ProductVersion': userAgentVersion,
-      'User-Agent': userAgentString,
+      'User-Agent': `OnlineLounge/${userAgentVersion} NASDKAPI Android`,
       Authorization: `Bearer ${token}`
     },
     json: true
@@ -159,7 +172,7 @@ async function getUserInfo(token) {
 }
 
 async function getApiLogin(userinfo, flapg_nso) {
-  const resp = await request({
+  const resp = await requestWithErrorHandling({
     method: 'POST',
     uri: 'https://api-lp1.znc.srv.nintendo.net/v1/Account/Login',
     headers: {
@@ -187,7 +200,7 @@ async function getApiLogin(userinfo, flapg_nso) {
 }
 
 async function getWebServiceToken(token, flapg_app) {
-  const resp = await request({
+  const resp = await requestWithErrorHandling({
     method: 'POST',
     uri: 'https://api-lp1.znc.srv.nintendo.net/v2/Game/GetWebServiceToken',
     headers: {
@@ -216,7 +229,7 @@ async function getWebServiceToken(token, flapg_app) {
 }
 
 async function getSplatnetApi(url) {
-  const resp = await request({
+  const resp = await requestWithErrorHandling({
     method: 'GET',
     uri: `${splatnetUrl}/api/${url}`,
     headers: {
@@ -262,13 +275,13 @@ async function postSplatnetApi(url, body) {
     requestOptions.json = true;
   }
 
-  const resp = await request(requestOptions);
+  const resp = await requestWithErrorHandling(requestOptions);
 
   return resp;
 }
 
 async function getSessionCookie(token) {
-  const resp = await request({
+  const resp = await requestWithErrorHandling({
     method: 'GET',
     uri: splatnetUrl,
     headers: {
@@ -291,11 +304,11 @@ async function getSessionWithSessionToken(sessionToken) {
   const apiTokens = await getApiToken(sessionToken);
   const userInfo = await getUserInfo(apiTokens.access);
   userLanguage = userInfo.language;
-  guid = uuidv4();
-  timestamp = String(Date.now());
-  const flapg_nso = await callFlapg(apiTokens.id, guid, timestamp, "nso");
+  const guid = uuidv4();
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const flapg_nso = await callFlapg(apiTokens.id, guid, timestamp, 'nso');
   const apiAccessToken = await getApiLogin(userInfo, flapg_nso);
-  const flapg_app = await callFlapg(apiAccessToken, guid, timestamp, "app");
+  const flapg_app = await callFlapg(apiAccessToken, guid, timestamp, 'app');
   const splatnetToken = await getWebServiceToken(apiAccessToken, flapg_app);
   await getSessionCookie(splatnetToken.accessToken);
   return splatnetToken;
@@ -313,7 +326,7 @@ async function getSplatnetSession(sessionTokenCode, sessionVerifier) {
 
 async function getSplatnetImage(battle) {
   const { url } = await postSplatnetApi(`share/results/${battle}`);
-  const imgBuf = await request({
+  const imgBuf = await requestWithErrorHandling({
     method: 'GET',
     uri: url,
     headers: {

@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## Version 1.3.2
+
+* Bump Version to fix broken linux and mac build
+
+## Version 1.3.0
+
+### New Features
+
+* Added some Salmon run data
+
+### Bugfix
+
+* Fixed NSO login
+
 ## Version 1.2.2
 
 ### New Features
